@@ -163,6 +163,7 @@ int dijkstra_shortest(struct State *s, int start, int end) {
     free(visited);
     
     return result == INF ? 0 : result;
+<<<<<<< HEAD
 }
 int dijkstra_second_shortest(struct State *s, int start, int end) {
     int *dist1 = (int*)malloc(s->n * sizeof(int));  // ??????
@@ -226,6 +227,71 @@ int solve1(struct State *s) {
     if (s == NULL || s->n < 2) return 0;
     return dijkstra_shortest(s, 0, s->n - 1);
 }
+=======
+}
+int dijkstra_second_shortest(struct State *s, int start, int end) {
+    int *dist1 = (int*)malloc(s->n * sizeof(int));  // 最短距离
+    int *dist2 = (int*)malloc(s->n * sizeof(int));  // 次短距离
+    int *visited1 = (int*)calloc(s->n, sizeof(int));
+    int *visited2 = (int*)calloc(s->n, sizeof(int));
+    for (int i = 0; i < s->n; i++) {
+        dist1[i] = INF;
+        dist2[i] = INF;
+    }
+    dist1[start] = s->adjlist[start].val;
+    while (1) {
+        // 找到未处理的最小距离
+        int u = -1;
+        int useSecond = 0;
+        
+        for (int v = 0; v < s->n; v++) {
+            if (!visited1[v] && dist1[v] < INF) {
+                if (u == -1 || dist1[v] < (useSecond ? dist2[u] : dist1[u])) {
+                    u = v;
+                    useSecond = 0;
+                }
+            }
+            if (!visited2[v] && dist2[v] < INF) {
+                if (u == -1 || dist2[v] < (useSecond ? dist2[u] : dist1[u])) {
+                    u = v;
+                    useSecond = 1;
+                }
+            }
+        }
+        if (u == -1) break;
+        if (useSecond) {
+            visited2[u] = 1;
+        } else {
+            visited1[u] = 1;
+        }
+        int currentDist = useSecond ? dist2[u] : dist1[u];
+        ArcNode *arc = s->adjlist[u].firstarc;
+        while (arc != NULL) {
+            int v = arc->number;
+            int newDist = currentDist + s->adjlist[v].val;
+            
+            if (newDist < dist1[v]) {
+                dist2[v] = dist1[v];
+                dist1[v] = newDist;
+            } else if (newDist > dist1[v] && newDist < dist2[v]) {
+                dist2[v] = newDist;
+            }
+            arc = arc->nextarc;
+        }
+    }
+    int result = dist2[end];
+    free(dist1);
+    free(dist2);
+    free(visited1);
+    free(visited2);
+    return result == INF ? 0 : result;
+}
+
+int solve1(struct State *s) {
+    if (s == NULL || s->n < 2) return 0;
+    return dijkstra_shortest(s, 0, s->n - 1);
+}
+>>>>>>> 69bf21e73fd50881ac5ce8c45d6d97c8f4f6ae0c
 
 int solve2(struct State *s) {
     if (s == NULL || s->n < 2) return 0;
