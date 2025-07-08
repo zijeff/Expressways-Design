@@ -3,90 +3,10 @@
 #include <string.h>
 #include <math.h>
 #include "state.h"
+#include <limits.h>
 
-#define INF 99999999
-int *dist;                   // 距离数组，存储从起点到各点的最短距离
-int *parent;                 // 父节点数组，用于重构路径
-int *vis;                    // 访问数组，标记是否已访问
-int *path;                   // 最短路径数组
-int path_length;             // 路径长度
-int start_node;              // 起点
-int n_nodes;                 // 节点总数
-// 找到距离最小且未访问的顶点
-int find_min_unvisited() {
-    int min_dist = INF;
-    int min_vertex = -1;
-    
-    for (int i = 0; i < n_nodes; i++) {
-        if (!vis[i] && dist[i] < min_dist) {
-            min_dist = dist[i];
-            min_vertex = i;
-        }
-    }
-    return min_vertex;
-}
-// 重构从起点到指定终点的路径
-void build_path(int end) {
-    if (dist[end] == INF) {
-        path_length = 0;
-        return;
-    }
-    int temp_path[n_nodes];
-    int temp_length = 0;
-    int current = end;
-    
-    while (current != -1) {
-        temp_path[temp_length++] = current;
-        current = parent[current];
-    }
-    
-    path_length = temp_length;
-    for (int i = 0; i < temp_length; i++) {
-        path[i] = temp_path[temp_length - 1 - i];
-    }
-}
-// 函数1：找最短路径并标记vis数组，维护dist数组
-int find_shortest_path(struct State *s, int start, int end) {
-    if (!s || !s->adjlist || s->n <= 0) {
-        return -1; // 错误：无效输入
-    }
-    n_nodes = s->n;
-    start_node = start;
-    // 初始化数组
-    for (int i = 0; i < n_nodes; i++) {
-        dist[i] = INF;
-        parent[i] = -1;
-        vis[i] = 0;
-    }
-    dist[start] = 0;
-    // 迪杰斯特拉算法
-    for (int count = 0; count < s->n - 1; count++) {
-        int u = find_min_unvisited();
-        if (u == -1) break; // 没有可达的顶点
-        
-        vis[u] = 1; // 标记为已访问
-        // 更新相邻顶点的距离
-        ArcNode *current = s->adjlist[u].firstarc;
-        while (current != NULL) {
-            int v = current->number;
-            int weight = current->val; // 边的权重为产业值
-            
-            if (!vis[v] && dist[u] != INF && 
-                dist[u] + weight < dist[v]) {
-                dist[v] = dist[u] + weight;
-                parent[v] = u;
-            }
-            current = current->nextarc;
-        }
-    }
-    // 标记最短路径上的所有节点为已访问
-    build_path(end);
-    for (int i = 0; i < path_length; i++) {
-        vis[path[i]] = 1;
-    }
-    
-    return 0; // 成功
-}
+#define INF INT_MAX
+
 void init_State(struct State *s)
 {
     for (int i = 0; i < s->n; i++) // s->n代表区域总数
@@ -177,93 +97,107 @@ void parse(struct State *s, struct PNG *p)
         }
     }
 }
-int solve1(struct State *s) {
-    // 假设要找从节点0到节点n-1的最短路径
-    int start = 0;
-    int end = s->n - 1;
-    
-    if (find_shortest_path(s, start, end) != 0) {
-        return -1;
+int dijkstra_shortest(struct State *s, int start, int end) {
+    int *dist = (int*)malloc(s->n * sizeof(int));
+    int *visited = (int*)calloc(s->n, sizeof(int));
+    for (int i = 0; i < s->n; i++) {
+        dist[i] = INF;
+    }
+    dist[start] = s->adjlist[start].val;
+    for (int count = 0; count < s->n; count++) {
+        int u = -1;
+        for (int v = 0; v < s->n; v++) {
+            if (!visited[v] && (u == -1 || dist[v] < dist[u])) {
+                u = v;
+            }
+        }
+        
+        if (u == -1 || dist[u] == INF) break;       
+        visited[u] = 1;
+        if (u == end) break;
+        ArcNode *arc = s->adjlist[u].firstarc;
+        while (arc != NULL) {
+            int v = arc->number;
+            if (!visited[v] && dist[u] != INF) {
+                int newDist = dist[u] + s->adjlist[v].val;
+                if (newDist < dist[v]) {
+                    dist[v] = newDist;
+                }
+            }
+            arc = arc->nextarc;
+        }
     }
     
-    if (path_length == 0) {
-        return -1; // 无路径
-    }
+    int result = dist[end];
+    free(dist);
+    free(visited);
     
-    return dist[end]; // 返回最短距离
+    return result == INF ? 0 : result;
 }
+int dijkstra_second_shortest(struct State *s, int start, int end) {
+    int *dist1 = (int*)malloc(s->n * sizeof(int));  // 最短距离
+    int *dist2 = (int*)malloc(s->n * sizeof(int));  // 次短距离
+    int *visited1 = (int*)calloc(s->n, sizeof(int));
+    int *visited2 = (int*)calloc(s->n, sizeof(int));
+    for (int i = 0; i < s->n; i++) {
+        dist1[i] = INF;
+        dist2[i] = INF;
+    }
+    dist1[start] = s->adjlist[start].val;
+    while (1) {
+        // 找到未处理的最小距离
+        int u = -1;
+        int useSecond = 0;
+        
+        for (int v = 0; v < s->n; v++) {
+            if (!visited1[v] && dist1[v] < INF) {
+                if (u == -1 || dist1[v] < (useSecond ? dist2[u] : dist1[u])) {
+                    u = v;
+                    useSecond = 0;
+                }
+            }
+            if (!visited2[v] && dist2[v] < INF) {
+                if (u == -1 || dist2[v] < (useSecond ? dist2[u] : dist1[u])) {
+                    u = v;
+                    useSecond = 1;
+                }
+            }
+        }
+        if (u == -1) break;
+        if (useSecond) {
+            visited2[u] = 1;
+        } else {
+            visited1[u] = 1;
+        }
+        int currentDist = useSecond ? dist2[u] : dist1[u];
+        ArcNode *arc = s->adjlist[u].firstarc;
+        while (arc != NULL) {
+            int v = arc->number;
+            int newDist = currentDist + s->adjlist[v].val;
+            
+            if (newDist < dist1[v]) {
+                dist2[v] = dist1[v];
+                dist1[v] = newDist;
+            } else if (newDist > dist1[v] && newDist < dist2[v]) {
+                dist2[v] = newDist;
+            }
+            arc = arc->nextarc;
+        }
+    }
+    int result = dist2[end];
+    free(dist1);
+    free(dist2);
+    free(visited1);
+    free(visited2);
+    return result == INF ? 0 : result;
+}
+
+int solve1(struct State *s) {
+    if (s == NULL || s->n < 2) return 0;
+    return dijkstra_shortest(s, 0, s->n - 1);
+}
+
 int solve2(struct State *s) {
-    int start = 0;
-    int end = s->n - 1;
-    // 先找到最短路径
-    if (find_shortest_path(s, start, end) != 0) {
-        return -1;
-    }
-    int shortest_dist = dist[end];
-    if (shortest_dist == INF) {
-        return -1; // 无路径存在
-    }
-    // 保存最短路径
-    int shortest_path[n_nodes];
-    int shortest_path_len = path_length;
-    for (int i = 0; i < path_length; i++) {
-        shortest_path[i] = path[i];
-    }
-    int second_shortest_dist = INF;
-    int second_shortest_path[n_nodes];
-    int second_shortest_path_len = 0;
-    
-    // 尝试删除最短路径上的每一条边
-    for (int i = 0; i < shortest_path_len - 1; i++) {
-        int u = shortest_path[i];
-        int v = shortest_path[i + 1];
-        
-        // 临时删除边u->v，找到替代路径
-        // 重新初始化
-        for (int j = 0; j < n_nodes; j++) {
-            dist[j] = INF;
-            parent[j] = -1;
-            vis[j] = 0;
-        }
-        dist[start] = 0;
-        for (int count = 0; count < s->n - 1; count++) {
-            int curr = find_min_unvisited();
-            if (curr == -1) break;
-            vis[curr] = 1;
-            ArcNode *current = s->adjlist[curr].firstarc;
-            while (current != NULL) {
-                int next = current->number;
-                int weight = current->val;
-                // 跳过被删除的边
-                if (curr == u && next == v) {
-                    current = current->nextarc;
-                    continue;
-                }
-                
-                if (!vis[next] && dist[curr] != INF && 
-                    dist[curr] + weight < dist[next]) {
-                    dist[next] = dist[curr] + weight;
-                    parent[next] = curr;
-                }
-                current = current->nextarc;
-            }
-        }
-        
-        // 检查是否找到了更好的次短路径
-        if (dist[end] != INF && dist[end] > shortest_dist && 
-            dist[end] < second_shortest_dist) {
-            second_shortest_dist = dist[end];
-            build_path(end);
-            second_shortest_path_len = path_length;
-            for (int j = 0; j < path_length; j++) {
-                second_shortest_path[j] = path[j];
-            }
-        }
-    }
-    
-    if (second_shortest_dist == INF) {
-        return -1; // 次短路径不存在
-    }
-    
-    return second_shortest_dist; // 返回次短距离
+    if (s == NULL || s->n < 2) return 0;
+    return dijkstra_second_shortest(s, 0, s->n - 1);
 }
