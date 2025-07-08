@@ -1,33 +1,94 @@
 #include "state.h"
-
+#include <math.h>
 void init_State(struct State *s)
 {
-    for (int i = 0; i < s->n; i++) // s->nä»£è¡¨åŒºåŸŸæ€»æ•°
+    for (int i = 0; i < s->n; i++) // s->n´ú±íÇøÓò×ÜÊı
     {
-        s->adjlist[i].number = i + 1;  // å°†ä¸‹æ ‡è½¬æ¢ä¸ºä»1å¼€å§‹è®¡æ•°
-        s->adjlist[i].firstarc = NULL; // å°†åˆå§‹çš„æŒ‡é’ˆç½®ä¸ºç©º
-        s->adjlist[i].val = 0;         // åˆå§‹çš„äº§ä¸šæ€»å€¼ç½®ä¸º0
+        s->adjlist[i].number = i + 1;  // ½«ÏÂ±ê×ª»»Îª´Ó1¿ªÊ¼¼ÆÊı
+        s->adjlist[i].firstarc = NULL; // ½«³õÊ¼µÄÖ¸ÕëÖÃÎª¿Õ
+        s->adjlist[i].val = 0;         // ³õÊ¼µÄ²úÒµ×ÜÖµÖÃÎª0
     }
 }
 void delete_State(struct State *s)
 {
-    // éå†æ‰€æœ‰çš„åŒºåŸŸï¼ˆé¡¶ç‚¹ï¼‰
+    // ±éÀúËùÓĞµÄÇøÓò£¨¶¥µã£©
     for (int i = 0; i < s->n; i++)
     {
-        ArcNode *p = s->adjlist[i].firstarc; // è·å–å½“å‰é¡¶ç‚¹çš„è¾¹é“¾è¡¨å¤´
+        ArcNode *p = s->adjlist[i].firstarc; // »ñÈ¡µ±Ç°¶¥µãµÄ±ßÁ´±íÍ·
         while (p != NULL)
         {
-            ArcNode *temp = p; // å­˜å‚¨å½“å‰è¾¹èŠ‚ç‚¹
-            p = p->nextarc;      // ç§»åŠ¨åˆ°ä¸‹ä¸€ä¸ªè¾¹èŠ‚ç‚¹
-            free(temp);          // é‡Šæ”¾å½“å‰è¾¹èŠ‚ç‚¹çš„å†…å­˜
+            ArcNode *temp = p; // ´æ´¢µ±Ç°±ß½Úµã
+            p = p->nextarc;      // ÒÆ¶¯µ½ÏÂÒ»¸ö±ß½Úµã
+            free(temp);          // ÊÍ·Åµ±Ç°±ß½ÚµãµÄÄÚ´æ
         }
     }
-    // é‡Šæ”¾é‚»æ¥è¡¨æ•°ç»„å†…å­˜
+    // ÊÍ·ÅÁÚ½Ó±íÊı×éÄÚ´æ
     free(s->adjlist);
 }
 void parse(struct State *s, struct PNG *p)
 {
-    // TODO
+    // ¼ì²éÊäÈë²ÎÊı
+    if (!s || !p || !p->image || p->width <= 0 || p->height <= 0) 
+    {
+        printf("Error: ÎŞĞ§µÄÊäÈë²ÎÊı\n");
+        return;
+    }
+    int width = p->width;
+    int height = p->height;
+    int total_nodes = width * height;
+    // ÉèÖÃÇøÓò×ÜÊı
+    s->n = total_nodes;
+    // ³õÊ¼»¯ËùÓĞ¶¥µã
+    init_State(s);
+    // ¼ÆËãÃ¿¸ö¶¥µãµÄ²úÒµÖµ
+    for (int y = 0; y < height; y++) 
+    {
+        for (int x = 0; x < width; x++) 
+        {
+            int node_id = y * width + x;
+            PXL* px = get_PXL(p, x, y);
+            if (!px)
+             continue;
+            // ¼ÆËã²úÒµÖµ£º255*255*3 - R? - G? - B?
+            int R = px->red;
+            int G = px->green;
+            int B = px->blue;
+            s->adjlist[node_id].val = 255*255*3 - R*R - G*G - B*B;
+        }
+    }
+    // ¹¹½¨ÁÚ½Ó±í£¨Ìí¼Ó±ß£©
+    for (int y = 0; y < height; y++) 
+    {
+        for (int x = 0; x < width; x++)
+         {
+            int node_id = y * width + x;
+            // ·½ÏòÊı×é£ºÉÏ¡¢ÏÂ¡¢×ó¡¢ÓÒ
+            int dirs[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+            // ¼ì²éËÄ¸ö·½ÏòµÄÁÚ¾Ó
+            for (int d = 0; d < 4; d++) 
+            {
+                int ny = y + dirs[d][0];
+                int nx = x + dirs[d][1];
+                // ¼ì²éÁÚ¾ÓÊÇ·ñÔÚµØÍ¼·¶Î§ÄÚ
+                if (ny >= 0 && ny < height && nx >= 0 && nx < width) 
+                {
+                    int neighbor_id = ny * width + nx;
+                    // ´´½¨ĞÂµÄÁÚ½Ó±í½Úµã
+                    ArcNode* new_arc = (ArcNode*)malloc(sizeof(ArcNode));
+                    if (!new_arc) {
+                        printf("Error: ÄÚ´æ·ÖÅäÊ§°Ü\n");
+                        continue;
+                    }
+                    // ÉèÖÃ±ßµÄĞÅÏ¢
+                    new_arc->number = neighbor_id + 1;  // ¶¥µã±àºÅ´Ó1¿ªÊ¼
+                    new_arc->val = s->adjlist[neighbor_id].val;  // ÁÚ¾ÓµÄ²úÒµÖµ
+                    // ½«ĞÂ½Úµã²åÈëÁÚ½Ó±íÍ·²¿
+                    new_arc->nextarc = s->adjlist[node_id].firstarc;
+                    s->adjlist[node_id].firstarc = new_arc;
+                }
+            }
+        }
+    }
 }
 int solve1(struct State *s)
 {
